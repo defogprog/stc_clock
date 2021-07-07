@@ -1,8 +1,10 @@
 TARGET = clock
 HEX = $(TARGET).hex
 
-CSRC = main.c
-CARGS = -mmcs51
+CSRCS = main.c 1.c 2.c
+OBJS = $(CSRCS:%.c=$(BUILD)/%.rel)
+
+CARGS  = -mmcs51
 CARGS += --iram-size 256
 CARGS += --xram-size 0
 CARGS += --code-size 2048
@@ -13,6 +15,19 @@ CARGS += --debug
 CARGS += -V
 CARGS += --std-sdcc99
 CARGS += --model-small
+
+OBJARGS  = -mmcs51
+OBJARGS += --iram-size 256
+OBJARGS += --xram-size 0
+OBJARGS += --code-size 2048
+OBJARGS += --nooverlay
+# OBJARGS += --nointroduction
+OBJARGS += --verbose
+OBJARGS += --debug
+OBJARGS += -V
+OBJARGS += --std-sdcc99
+OBJARGS += --model-small
+
 INCLUDES = -Iinclude
 
 PROG = stcgal
@@ -32,8 +47,11 @@ MOECHO = @
 
 .PHONY: all clean
 
-all: $(BUILD)
-	$(CC) $(CARGS) $(INCLUDES) $(CSRC) -o $(BUILD)/$(HEX)
+all: $(BUILD) $(OBJS)
+	$(CC) $(OBJARGS) $(INCLUDES) $(OBJS) -o $(BUILD)/$(HEX)
+
+$(OBJS):$(BUILD)/%.rel:%.c
+	$(CC) $(CARGS) $(INCLUDES) -c $< -o $@
 
 clean:
 	$(RM) $(BUILD)
