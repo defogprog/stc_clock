@@ -1,7 +1,7 @@
 TARGET = clock
 HEX = $(TARGET).hex
 
-CSRCS = main.c 1.c 2.c
+CSRCS = $(wildcard *.c)
 OBJS = $(CSRCS:%.c=$(BUILD)/%.rel)
 
 CARGS  = -mmcs51
