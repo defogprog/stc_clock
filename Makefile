@@ -30,7 +30,6 @@ OBJARGS += --model-small
 
 INCLUDES = -Iinclude
 
-PROG = stcgal
 PROGARGS = -P stc12a
 PROGARGS += -p /dev/ttyUSB0
 PROGARGS += -b 9600
@@ -38,8 +37,10 @@ PROGARGS += -l 2400
 PROGARGS += -o clock_source=external
 
 BUILD = build
+
+PROG = stcgal
 CC = sdcc
-CP = CP
+CP = cp
 MV = mv
 RM = rm -rf
 MKDIR = mkdir
