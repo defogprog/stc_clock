@@ -48,7 +48,7 @@ static void init_timers(void) {
 /*
  * ISRs
  */
-void T0_ISR(void) __interrupt (1) {
+void T0_ISR(void) __interrupt (TIM0_VEC) {
     static uint8_t position = 0;
     uint8_t dot = 0;
 

@@ -4,6 +4,14 @@
  * @author  defog psnk42@gmail.com
  */
 
+#define INT0_VEC        0
+#define TIM0_VEC        1
+#define INT1_VEC        2
+#define TIM1_VEC        3
+#define UART_VEC        4
+#define ADC_SPI_VEC     5
+#define PCA_LVD_VEC     6
+
 #define __SFR_P0        0x80
 #define __SFR_SP        0x81
 #define __SFR_DPL       0x82
