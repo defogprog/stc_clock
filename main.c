@@ -56,8 +56,8 @@ typedef enum  {
 
 typedef struct {
     uint8_t symb;
-    uint8_t blink : 1;
-    dot_state dot : 2;
+    uint8_t blink;
+    dot_state dot;
 } digit_t;
 
 
@@ -75,7 +75,7 @@ typedef struct {
 typedef struct {
     uint8_t hour;
     uint8_t minute;
-    uint8_t on : 1;
+    uint8_t on;
 } alarm_t;
 
 typedef enum {
@@ -111,15 +111,16 @@ static const static uint8_t symbols[] = {
     0x76,0x58,0x50,0xF2,    // H, L, I,
     0x02,0x08,              // -, _.
 };
-static const uint8_t *params[MODE_SET_END - MODE_SET - 1] = {
+static const uint8_t *params[] = {
     &(time.hours),
     &(time.minutes),
     &(date.day),
     &(date.month)
 };
 
-static const uint8_t limits[MODE_SET_END - MODE_SET - 1] = {
-    24, 60, 31, 12,
+static const uint8_t limits[] = {
+    0,  0,  1,  1,  // Lower limit
+    24, 60, 32, 13, // Higher limit
 };
 
 /**
@@ -132,12 +133,16 @@ static volatile date_t date;
 static volatile alarm_t alarm[2];
 static volatile uint16_t ticks = 0;          // This is actual time
 static volatile struct {
-    uint8_t mode : 2;
-    uint8_t set : 2;
+    uint8_t mode;
+    uint8_t set;
 } buttons_state = {
     .mode = BUT_RELEASED,
     .set = BUT_RELEASED,
 };
+static uint8_t press_duration_mode = 0;
+static uint8_t press_duration_set = 0;
+static uint8_t position = 0;
+static uint8_t times = 0;
 
 /**
  * @brief   Functions
@@ -169,25 +174,9 @@ static uint8_t ones(uint8_t num) {
 }
 
 /**
- * @brief           Increment number with overflow
- * 
- * @param num       Ptr to number to be incremented
- * @param limit     
- * @return uint8_t  0 if no overflow, 1 of overflowed
- */
-static void inc_with_ovf(uint8_t *num, uint8_t limit) {
-    // if (!num) return;
-    if (++(*num) == limit) {
-        (*num) = 0;
-    }
-}
-
-/**
  * @brief   ISRs
  */
 void T0_ISR(void) __interrupt (TIM0_VEC) {
-    static uint8_t position = 0;
-    static uint16_t times = 0;
 
     TL0 = TIM_PERIOD(LED_SCAN_PERIOD_MS) & 0xFF;
     TH0 = (TIM_PERIOD(LED_SCAN_PERIOD_MS) >> 8) & 0xFF;
@@ -320,13 +309,6 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
 
 void T1_ISR(void) __interrupt(TIM1_VEC) {
     static uint8_t timeout = 0;
-    static struct {
-        uint8_t mode;
-        uint8_t set;
-    } press_duration = {
-        .mode = 0,
-        .set = 0,
-    };
 
     BUTTON_MODE = 1;
     BUTTON_SET = 1;
@@ -343,8 +325,8 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
                 }
                 break;
             case BUT_PRESSED:
-                if (++press_duration.mode == 20) {
-                    press_duration.mode = 0;
+                if (++press_duration_mode == 20) {
+                    press_duration_mode = 0;
                     buttons_state.mode = BUT_SHORT_PRESS;
                 }
                 break;
@@ -360,21 +342,23 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
                 }
                 buttons_state.mode = BUT_LONG_PRESS;
                 break;
-            case BUT_LONG_PRESS:
-                break;
             default:
                 break;
         }
     } else {
-        press_duration.mode = 0;
+        press_duration_mode = 0;
         buttons_state.mode = BUT_RELEASED;
     }
 
     // SET button state machine
     if (BUTTON_SET == 0) {
         uint8_t *param;
-        uint8_t limit;
-
+        uint8_t min, max;
+        uint8_t index = (clock_mode & ~MODE_SET) - 1;
+        param = params[index];
+        min = limits[index];
+        max = limits[index + 4];
+        
         switch (buttons_state.set) {
             case BUT_RELEASED:
                 buttons_state.set = BUT_PRESSED;
@@ -390,34 +374,29 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
                     timeout = 0;
                 }
                 if (clock_mode & MODE_SET) {
-                    param = params[clock_mode - MODE_SET - 1];
-                    limit = limits[clock_mode - MODE_SET - 1];
-                    inc_with_ovf(param, limit);
+                    if (++(*param) == max) {
+                        (*param) = min;
+                    }
                 }
                 break;
             case BUT_PRESSED:
-                if (++press_duration.set == 20) {
-                    press_duration.set = 0;
+                if (++press_duration_set == 20) {
+                    press_duration_set = 0;
                     buttons_state.set = BUT_LONG_PRESS;
                 }
                 break;
-            case BUT_SHORT_PRESS:
-                break;
             case BUT_LONG_PRESS:
                 if (clock_mode & MODE_SET) {
-                    param = params[clock_mode - MODE_SET - 1];
-                    limit = limits[clock_mode - MODE_SET - 1];
-                    inc_with_ovf(param, limit);
-                    // if (clock_mode > MODE_SET_MIN) {
-                    //     (*param)++;
-                    // }
+                    if (++(*param) == max) {
+                        (*param) = min;
+                    }
                 }
                 break;
             default:
                 break;
         }
     } else {
-        press_duration.set = 0;
+        press_duration_set = 0;
         buttons_state.set = BUT_RELEASED;
     }
 
