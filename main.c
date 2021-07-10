@@ -68,7 +68,9 @@ typedef enum {
     MODE_SET_SEC,
     MODE_SET_DAY,
     MODE_SET_MON,
-    MODE_SET_YEAR
+    MODE_SET_YEAR,
+    MODE_SET_ALM_HOUR,
+    MODE_SET_ALM_MIN,
 } clock_mode_t;
 
 /**
@@ -94,6 +96,7 @@ volatile static digit_t digits[4];
 static volatile clock_mode_t clock_mode;
 static volatile time_t time;
 static volatile date_t date;
+static volatile alarm_t alarm;
 static volatile uint16_t ticks = 0;          // This is actual time
 
 /**
@@ -170,8 +173,21 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
             digits[1].symb = symbols[date.day % 10];
             digits[2].symb = symbols[date.month / 10];
             digits[3].symb = symbols[date.month % 10];
-            digits[3].blink = 0;
-            digits[3].dot = DOT_ON;
+            break;
+        // Display "YYYY"
+        case MODE_YEAR:
+            digits[0].symb = symbols[date.year / 1000];
+            digits[1].symb = symbols[date.year / 100 % 10];
+            digits[2].symb = symbols[date.year / 10  % 10];
+            digits[3].symb = symbols[date.year / 1   % 10];
+            break;
+        // Display "MM:HH" with solid colon
+        case MODE_ALARM:
+            digits[0].symb = symbols[alarm.hour / 10];
+            digits[1].symb = symbols[alarm.hour % 10];
+            digits[1].dot = DOT_ON;
+            digits[2].symb = symbols[alarm.minute / 10];
+            digits[3].symb = symbols[alarm.minute % 10];
             break;
     }
 
@@ -204,8 +220,6 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
  * MAIN
  */
 int main(void) {
-    uint8_t d = 0;
-    uint8_t num = 0;
 
     // Init time
     time.hours = time.minutes = time.seconds = 0;
