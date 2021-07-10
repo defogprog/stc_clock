@@ -44,21 +44,26 @@ CP = cp
 MV = mv
 RM = rm -rf
 MKDIR = mkdir
-MOECHO = @
+ifeq ($(SILENTLY),1)
+NOECHO = @
+NOFLOOD = > /dev/null
+else
+NOECHO = 
+endif
 
 .PHONY: all clean
 
 all: $(BUILD) $(OBJS)
-	$(CC) $(OBJARGS) $(INCLUDES) $(OBJS) -o $(BUILD)/$(HEX)
+	$(NOECHO)$(CC) $(OBJARGS) $(INCLUDES) $(OBJS) -o $(BUILD)/$(HEX) $(NOFLOOD)
 
 $(OBJS):$(BUILD)/%.rel:%.c
-	$(CC) $(CARGS) $(INCLUDES) -c $< -o $@
+	$(NOECHO)$(CC) $(CARGS) $(INCLUDES) -c $< -o $@ $(NOFLOOD)
 
 clean:
-	$(RM) $(BUILD)
+	$(NOECHO)$(RM) $(BUILD) $(NOFLOOD)
 
 $(BUILD):
-	$(MKDIR) $(BUILD)
+	$(NOECHO)$(MKDIR) $(BUILD) $(NOFLOOD)
 
 flash: all
-	$(PROG) $(PROGARGS) $(BUILD)/$(HEX)
+	$(NOECHO)$(PROG) $(PROGARGS) $(BUILD)/$(HEX) $(NOFLOOD)
