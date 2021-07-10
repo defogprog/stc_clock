@@ -20,6 +20,8 @@
 #define TIM_PERIOD(_ms)         _TIM_PERIOD(_ms)
 #define LED_SCAN_PERIOD_MS      1
 #define BUTTON_SCAN_PERIOD_MS   50
+#define BUTTON_MODE             P3_4
+#define BUTTON_SET              P3_5
 
 #define countof(_a) (sizeof(_a)/sizeof(*_a))
 
@@ -33,6 +35,13 @@ enum {
     _C,_D,_E,_F,
     _H,_L,_I,_P,
     _DASH,__,
+};
+
+enum {
+    BUT_RELEASED,
+    BUT_PRESSED,
+    BUT_SHORT_PRESS,
+    BUT_LONG_PRESS,
 };
 
 /**
@@ -78,7 +87,6 @@ typedef enum {
     MODE_ALARM,
     MODE_SET_HOUR,
     MODE_SET_MIN,
-    MODE_SET_SEC,
     MODE_SET_DAY,
     MODE_SET_MON,
     MODE_SET_YEAR,
@@ -109,8 +117,15 @@ static volatile digit_t digits[4];
 static volatile clock_mode_t clock_mode;
 static volatile time_t time;
 static volatile date_t date;
-static volatile alarm_t alarm;
+static volatile alarm_t alarm[2];
 static volatile uint16_t ticks = 0;          // This is actual time
+static volatile struct {
+    uint8_t mode : 2;
+    uint8_t set : 2;
+} buttons_state = {
+    .mode = BUT_RELEASED,
+    .set = BUT_RELEASED,
+};
 
 /**
  * @brief   Functions
@@ -131,6 +146,28 @@ static void init_timers(void) {
     TH1 = (TIM_PERIOD(BUTTON_SCAN_PERIOD_MS) >> 8) & 0xFF;
     TCON_TR1 = 1;
     IE_ET1 = 1;
+}
+
+static uint8_t dec(uint8_t num) {
+    return num / 10;
+}
+
+static uint8_t ones(uint8_t num) {
+    return num % 10;
+}
+
+/**
+ * @brief           Increment number with overflow
+ * 
+ * @param num       Ptr to number to be incremented
+ * @param limit     
+ * @return uint8_t  0 if no overflow, 1 of overflowed
+ */
+static uint8_t inc_with_ovf(uint8_t num, uint8_t limit) {
+    if (++num == limit) {
+        num = 0;
+    }
+    return num;
 }
 
 /**
@@ -176,41 +213,93 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     switch (clock_mode) {
         // Display "HR:MN" with blinking colon
         case MODE_CLOCK:
-            digits[0].symb = symbols[time.hours / 10];
-            digits[1].symb = symbols[time.hours % 10];
+            digits[0].symb = symbols[dec(time.hours)];
+            digits[1].symb = symbols[ones(time.hours)];
             digits[1].dot = DOT_BLINK;
-            digits[2].symb = symbols[time.minutes / 10];
-            digits[3].symb = symbols[time.minutes % 10];
+            digits[2].symb = symbols[dec(time.minutes)];
+            digits[3].symb = symbols[ones(time.minutes)];
             break;
-
         // Display "  :SE" with solid colon
         case MODE_SECONDS:
-            digits[1].dot = DOT_ON;
-            digits[2].symb = symbols[time.seconds / 10];
-            digits[3].symb = symbols[time.seconds % 10];
+            digits[1].dot = DOT_BLINK;
+            digits[2].symb = symbols[dec(time.seconds)];
+            digits[3].symb = symbols[ones(time.seconds)];
             break;
         // Display "DY.MO" with solid dot
         case MODE_DATE:
-            digits[0].symb = symbols[date.day / 10];
+            digits[0].symb = symbols[dec(date.day)];
             digits[0].dot = DOT_ON;
-            digits[1].symb = symbols[date.day % 10];
-            digits[2].symb = symbols[date.month / 10];
-            digits[3].symb = symbols[date.month % 10];
+            digits[1].symb = symbols[ones(date.day)];
+            digits[2].symb = symbols[dec(date.month)];
+            digits[3].symb = symbols[ones(date.month)];
             break;
         // Display "YYYY"
         case MODE_YEAR:
             digits[0].symb = symbols[_2];
             digits[1].symb = symbols[_0];
-            digits[2].symb = symbols[date.year / 10];
-            digits[3].symb = symbols[date.year % 10];
+            digits[2].symb = symbols[dec(date.year)];
+            digits[3].symb = symbols[ones(date.year)];
             break;
         // Display "HR:MN" with solid colon
         case MODE_ALARM:
-            digits[0].symb = symbols[alarm.hour / 10];
-            digits[1].symb = symbols[alarm.hour % 10];
+            digits[0].symb = symbols[dec(alarm[0].hour)];
+            digits[1].symb = symbols[ones(alarm[0].hour)];
             digits[1].dot = DOT_ON;
-            digits[2].symb = symbols[alarm.minute / 10];
-            digits[3].symb = symbols[alarm.minute % 10];
+            digits[2].symb = symbols[dec(alarm[0].minute)];
+            digits[3].symb = symbols[ones(alarm[0].minute)];
+            break;
+        // Display "HR:MN" with blinkig HR and cloln
+        case MODE_SET_HOUR:
+            digits[0].symb = symbols[dec(time.hours)];
+            digits[0].blink = 1;
+            digits[1].symb = symbols[ones(time.hours)];
+            digits[1].blink = 1;
+            digits[1].dot = DOT_BLINK;
+            digits[2].symb = symbols[dec(time.minutes)];
+            digits[3].symb = symbols[ones(time.minutes)];
+            break;
+        // Display "HR:MN" with blinkig MN and cloln
+        case MODE_SET_MIN:
+            digits[0].symb = symbols[dec(time.hours)];
+            digits[1].symb = symbols[ones(time.hours)];
+            digits[1].dot = DOT_BLINK;
+            digits[2].symb = symbols[dec(time.minutes)];
+            digits[2].blink = 1;
+            digits[3].symb = symbols[ones(time.minutes)];
+            digits[3].blink = 1;
+            break;
+        // Display "DY.MO" with blinking DY
+        case MODE_SET_DAY:
+            digits[0].symb = symbols[dec(date.day)];
+            digits[0].blink = 1;
+            digits[0].dot = DOT_ON;
+            digits[1].symb = symbols[ones(date.day)];
+            digits[1].blink = 1;
+            digits[2].symb = symbols[dec(date.month)];
+            digits[3].symb = symbols[ones(date.month)];
+            break;
+        // Display "DY.MO" with blinking MO
+        case MODE_SET_MON:
+            digits[0].symb = symbols[dec(date.day)];
+            digits[0].dot = DOT_ON;
+            digits[1].symb = symbols[ones(date.day)];
+            digits[2].symb = symbols[dec(date.month)];
+            digits[2].blink = 1;
+            digits[3].symb = symbols[ones(date.month)];
+            digits[3].blink = 1;
+            break;
+        case MODE_SET_YEAR:
+            digits[0].symb = symbols[_2];
+            digits[0].blink = 1;
+            digits[1].symb = symbols[_0];
+            digits[1].blink = 1;
+            digits[2].symb = symbols[dec(date.year)];
+            digits[2].blink = 1;
+            digits[3].symb = symbols[ones(date.year)];
+            digits[3].blink = 1;
+ 
+            break;
+        default:
             break;
     }
 
@@ -240,7 +329,138 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
 }
 
 void T1_ISR(void) __interrupt(TIM1_VEC) {
+    static uint8_t timeout = 0;
+    static struct {
+        uint8_t mode;
+        uint8_t set;
+    } press_duration = {
+        .mode = 0,
+        .set = 0,
+    };
 
+    BUTTON_MODE = 1;
+    BUTTON_SET = 1;
+
+    // MODE button state machine
+    if (BUTTON_MODE == 0) {
+        switch (buttons_state.mode) {
+            case BUT_RELEASED:
+                buttons_state.mode = BUT_PRESSED;
+                switch (clock_mode) {
+                    // These modes are set with long press
+                    case MODE_SET_HOUR:
+                        timeout = 100;
+                        clock_mode = MODE_SET_MIN;
+                        break;
+                    case MODE_SET_MIN:
+                        timeout = 100;
+                        clock_mode = MODE_SET_DAY;
+                        break;
+                    case MODE_SET_DAY:
+                        timeout = 100;
+                        clock_mode = MODE_SET_MON;
+                        break;
+                    case MODE_SET_MON:
+                        timeout = 100;
+                        clock_mode = MODE_SET_YEAR;
+                        break;
+                    case MODE_SET_YEAR:
+                        timeout = 100;
+                        clock_mode = MODE_CLOCK;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case BUT_PRESSED:
+                if (++press_duration.mode == 20) {
+                    press_duration.mode = 0;
+                    buttons_state.mode = BUT_SHORT_PRESS;
+                }
+                break;
+            case BUT_SHORT_PRESS:
+                if (clock_mode == MODE_CLOCK ||
+                    clock_mode == MODE_DATE) {
+                    clock_mode = MODE_SET_HOUR;
+                } else if (clock_mode == MODE_SECONDS) {
+                    time.seconds = 0;
+                } else {
+                    clock_mode = MODE_CLOCK;
+                }
+                buttons_state.mode = BUT_LONG_PRESS;
+                break;
+            case BUT_LONG_PRESS:
+                break;
+            default:
+                break;
+        }
+    } else {
+        press_duration.mode = 0;
+        buttons_state.mode = BUT_RELEASED;
+    }
+
+    // SET button state machine
+    if (BUTTON_SET == 0) {
+        switch (buttons_state.set) {
+            case BUT_RELEASED:
+                buttons_state.set = BUT_PRESSED;
+                switch (clock_mode) {
+                    // These modeas are set cyclically with short press
+                    case MODE_CLOCK:
+                        clock_mode = MODE_DATE;
+                        timeout = 20;
+                        break;
+                    case MODE_DATE:
+                        clock_mode = MODE_SECONDS;
+                        break;
+                    case MODE_SECONDS:
+                        clock_mode = MODE_CLOCK;
+                        break;
+                    
+                    case MODE_SET_HOUR:
+                        time.hours = inc_with_ovf(time.hours, 24);
+                        break;
+                    case MODE_SET_MIN:
+                        time.minutes = inc_with_ovf(time.minutes, 60);
+                    default:
+                        break;
+                }
+                break;
+            case BUT_PRESSED:
+                if (++press_duration.set == 20) {
+                    press_duration.set = 0;
+                    buttons_state.set = BUT_SHORT_PRESS;
+                }
+                break;
+            case BUT_SHORT_PRESS:
+                // if (clock_mode == MODE_SET_HOUR) {
+                //     time.hours = inc_with_ovf(time.hours, 24);
+                // }
+                // switch (clock_mode) {
+                //     case MODE_SET_HOUR:
+                //         time.hours = inc_with_ovf(time.hours, 24);
+                //         break;
+                //     case MODE_SET_MIN:
+                //         time.minutes = inc_with_ovf(time.minutes, 60);
+                //     default:
+                //         break;
+                // }
+                break;
+            case BUT_LONG_PRESS:
+                break;
+            default:
+                break;
+        }
+    } else {
+        press_duration.set = 0;
+        buttons_state.set = BUT_RELEASED;
+    }
+
+    if (timeout != 0) {
+        if (--timeout == 0) {
+            clock_mode = MODE_CLOCK;
+        }
+    }
 }
 
 /**
@@ -249,7 +469,9 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
 int main(void) {
 
     // Init time
-    time.hours = time.minutes = time.seconds = 0;
+    time.hours = 12;
+    time.minutes = 0;
+    time.seconds = 0;
 
     // Init date
     date.day = 1;
@@ -257,12 +479,12 @@ int main(void) {
     date.year = 20;
 
     // Init alarm
-    alarm.hour = 12;
-    alarm.minute = 0;
-    alarm.on = 0;
+    alarm[0].hour = 13;
+    alarm[0].minute = 0;
+    alarm[0].on = 0;
 
     // Set default clock mode
-    clock_mode = MODE_YEAR;
+    clock_mode = MODE_CLOCK;
 
     init_timers();
 
