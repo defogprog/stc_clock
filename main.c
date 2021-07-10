@@ -9,13 +9,12 @@
 #define DIG_PORT        P1
 #define DIG_DOT         P1_0
 
-#define BLINK_PERIOD    500
+#define BLINK_PERIOD    250
 
-#define FOSC            12000000
-#define T1MS            (65536 - FOSC/(12*1000))
-#define T2MS            (65536 - FOSC/(12*500))
-#define T5MS            (65536 - FOSC/(12*200))
-#define T10MS           (65536 - FOSC/(12*100))
+#define _TIM_PERIOD(_ms)    (-_ms##000 - 1)
+#define TIM_PERIOD(_ms)     _TIM_PERIOD(_ms)
+
+#define SCAN_PERIOD_MS     1
 
 #define countof(_a) (sizeof(_a)/sizeof(*_a))
 
@@ -67,9 +66,9 @@ volatile static digit_t digits[4] = {
 static void init_timers(void) {
     // Init Timer0
     AUXR &= ~AUXR_T0x12;                // SYSclk/12
-    TMOD = TMOD_T1_M0;                  // 16-bit Timer mode
-    TL0 = T10MS & 0xFF;
-    TH0 = T10MS >> 8;
+    TMOD = TMOD_T0_M0;                  // 16-bit Timer mode
+    TL0 = TIM_PERIOD(SCAN_PERIOD_MS) & 0xFF;
+    TH0 = TIM_PERIOD(SCAN_PERIOD_MS) >> 8;
     TCON_TR0 = 1;                       // Enable Tim0
     IE_ET0 = 1;                         // Enable Tim0 Interrupts
 }
@@ -80,8 +79,8 @@ static void init_timers(void) {
 void T0_ISR(void) __interrupt (TIM0_VEC) {
     static uint8_t position = 0;
 
-    TL0 = T10MS & 0xFF;
-    TH0 = T10MS >> 8;
+    TL0 = TIM_PERIOD(SCAN_PERIOD_MS) & 0xFF;
+    TH0 = TIM_PERIOD(SCAN_PERIOD_MS) >> 8;
 
     static uint16_t times = 0;
 
