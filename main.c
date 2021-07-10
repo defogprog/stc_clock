@@ -13,7 +13,6 @@
 
 #define _TIM_PERIOD(_ms)    (-_ms##000 - 1)
 #define TIM_PERIOD(_ms)     _TIM_PERIOD(_ms)
-
 #define SCAN_PERIOD_MS     1
 
 #define countof(_a) (sizeof(_a)/sizeof(*_a))
@@ -25,15 +24,6 @@ enum {
     _C,_D,_E,_F,
     _H,_L,_I,_P,
     _DASH,__,
-};
-
-const static uint8_t symbols[] = {
-    0xFC,0x24,0xBA,0xAE,    // 0, 1, 2, 3,
-    0x66,0xCE,0xDE,0xA4,    // 4, 5, 6, 7,
-    0xFE,0xEE,0xF6,0x5E,    // 8, 9, A, b,
-    0xD8,0x3E,0xDA,0xD2,    // C, d, E, F,
-    0x76,0x58,0x50,0xF2,    // H, L, I,
-    0x02,0x08,              // -, _.
 };
 
 typedef enum  {
@@ -48,17 +38,64 @@ typedef struct _digit_t {
     dot_state dot : 2;
 } digit_t;
 
-volatile static digit_t digits[4] = { 
-    [0].symb = _1,
-    [1].symb = _2,
-    [2].symb = _P,
-    [3].symb = _P,
-    [1].dot = DOT_BLINK,
-    [2].dot = DOT_ON,
-    [3].dot = DOT_BLINK,
-    [0].blink = 1,
-    [2].blink = 1,
+
+typedef struct _time_t {
+    uint8_t hours;
+    uint8_t minutes;
+    uint8_t seconds;
+} time_t;
+
+typedef struct _date_t {
+    uint8_t day;
+    uint8_t month;
+    uint16_t year;
+} date_t;
+
+typedef struct _alarm_t {
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t on : 1;
+} alarm_t;
+
+typedef enum {
+    MODE_CLOCK = 1,
+    MODE_SECONDS,
+    MODE_DATE,
+    MODE_YEAR,
+    MODE_ALARM,
+    MODE_SET_HOUR,
+    MODE_SET_MIN,
+    MODE_SET_SEC,
+    MODE_SET_DAY,
+    MODE_SET_MON,
+    MODE_SET_YEAR
+} clock_mode_t;
+
+/**
+ * CONSTANTS
+ */
+static const uint8_t days_in_month[12] = {
+    31, 28, 31, 30,
+    31, 30, 31, 31,
+    30, 31, 30, 31
 };
+static const static uint8_t symbols[] = {
+    0xFC,0x24,0xBA,0xAE,    // 0, 1, 2, 3,
+    0x66,0xCE,0xDE,0xA4,    // 4, 5, 6, 7,
+    0xFE,0xEE,0xF6,0x5E,    // 8, 9, A, b,
+    0xD8,0x3E,0xDA,0xD2,    // C, d, E, F,
+    0x76,0x58,0x50,0xF2,    // H, L, I,
+    0x02,0x08,              // -, _.
+};
+/**
+ * VARIABLES
+ */
+volatile static digit_t digits[4];
+static volatile clock_mode_t clock_mode;
+static volatile time_t time;
+static volatile date_t date;
+static volatile uint16_t ticks = 0;          // This is actual time
+
 
 /**
  * FUNCTIONS
@@ -68,7 +105,7 @@ static void init_timers(void) {
     AUXR &= ~AUXR_T0x12;                // SYSclk/12
     TMOD = TMOD_T0_M0;                  // 16-bit Timer mode
     TL0 = TIM_PERIOD(SCAN_PERIOD_MS) & 0xFF;
-    TH0 = TIM_PERIOD(SCAN_PERIOD_MS) >> 8;
+    TH0 = (TIM_PERIOD(SCAN_PERIOD_MS) >> 8) & 0xFF;
     TCON_TR0 = 1;                       // Enable Tim0
     IE_ET0 = 1;                         // Enable Tim0 Interrupts
 }
@@ -78,18 +115,96 @@ static void init_timers(void) {
  */
 void T0_ISR(void) __interrupt (TIM0_VEC) {
     static uint8_t position = 0;
+    static uint16_t times = 0;
 
     TL0 = TIM_PERIOD(SCAN_PERIOD_MS) & 0xFF;
-    TH0 = TIM_PERIOD(SCAN_PERIOD_MS) >> 8;
+    TH0 = (TIM_PERIOD(SCAN_PERIOD_MS) >> 8) & 0xFF;
 
-    static uint16_t times = 0;
+    // Time and calendar
+    if (++ticks == 1000) {
+        ticks = 0;
+        if (++time.seconds == 60) {
+            time.seconds = 0;
+            if (++time.minutes == 60) {
+                time.minutes = 0;
+                if (++time.hours = 24) {
+                    time.hours = 0;
+                    if (++date.day > days_in_month[date.month]) {
+                        date.day = 1;
+                        if (++date.month > 12) {
+                            date.month = 1;
+                            ++date.year;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    switch (clock_mode) {
+        // Display "HR:MN" with blinking colon
+        case MODE_CLOCK:
+            digits[0].symb = symbols[time.hours / 10];
+            digits[0].blink = 0;
+            digits[0].dot = DOT_OFF;
+
+            digits[1].symb = symbols[time.hours % 10];
+            digits[1].blink = 0;
+            digits[1].dot = DOT_BLINK;
+
+            digits[2].symb = symbols[time.minutes / 10];
+            digits[2].blink = 0;
+            digits[2].dot = DOT_OFF;
+
+            digits[3].symb = symbols[time.minutes % 10];
+            digits[3].blink = 0;
+            digits[3].dot = DOT_OFF;
+            break;
+
+        // Display "  :SS" with solid colon
+        case MODE_SECONDS:
+            digits[0].symb = 0;
+            digits[0].blink = 0;
+            digits[0].dot = DOT_OFF;
+
+            digits[1].symb = 0;
+            digits[1].blink = 0;
+            digits[1].dot = DOT_ON;
+
+            digits[2].symb = symbols[time.seconds / 10];
+            digits[2].blink = 0;
+            digits[2].dot = DOT_OFF;
+
+            digits[3].symb = symbols[time.seconds % 10];
+            digits[3].blink = 0;
+            digits[3].dot = DOT_OFF;
+            break;
+        // Display "DD.MM." with solid dots
+        case MODE_DATE:
+            digits[0].symb = symbols[date.day / 10];
+            digits[0].blink = 0;
+            digits[0].dot = DOT_ON;
+
+            digits[1].symb = symbols[date.day % 10];
+            digits[1].blink = 0;
+            digits[1].dot = DOT_OFF;
+
+            digits[2].symb = symbols[date.month / 10];
+            digits[2].blink = 0;
+            digits[2].dot = DOT_OFF;
+
+            digits[3].symb = symbols[date.month % 10];
+            digits[3].blink = 0;
+            digits[3].dot = DOT_ON;
+            break;
+    }
 
     P3 |= 0x0F;                         // Turn off digits
 
     if (digits[position].blink && times > (BLINK_PERIOD/2))
         DIG_PORT = 0;
     else
-        DIG_PORT = symbols[digits[position].symb];
+        DIG_PORT = digits[position].symb;
 
     switch (digits[position].dot) {
         case DOT_BLINK:
@@ -115,6 +230,12 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
 int main(void) {
     uint8_t d = 0;
     uint8_t num = 0;
+
+    time.hours = time.minutes = time.seconds = 0;
+    date.day = 1;
+    date.month = 1;
+    date.year = 2020;
+    clock_mode = MODE_CLOCK;
 
     init_timers();
 
