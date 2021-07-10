@@ -48,7 +48,7 @@ typedef struct {
 typedef struct {
     uint8_t day;
     uint8_t month;
-    uint16_t year;
+    uint8_t year;
 } date_t;
 
 typedef struct {
@@ -135,7 +135,9 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
                         date.day = 1;
                         if (++date.month > 12) {
                             date.month = 1;
-                            ++date.year;
+                            if (++date.year > 99) {
+                                date.year = 0;
+                            }
                         }
                     }
                 }
@@ -176,10 +178,10 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
             break;
         // Display "YYYY"
         case MODE_YEAR:
-            digits[0].symb = symbols[date.year / 1000];
-            digits[1].symb = symbols[date.year / 100 % 10];
-            digits[2].symb = symbols[date.year / 10  % 10];
-            digits[3].symb = symbols[date.year / 1   % 10];
+            digits[0].symb = symbols[_2];
+            digits[1].symb = symbols[_0];
+            digits[2].symb = symbols[date.year / 10];
+            digits[3].symb = symbols[date.year % 10];
             break;
         // Display "HR:MN" with solid colon
         case MODE_ALARM:
@@ -227,7 +229,7 @@ int main(void) {
     // Init date
     date.day = 1;
     date.month = 1;
-    date.year = 2020;
+    date.year = 20;
 
     // Init alarm
     alarm.hour = 12;
@@ -235,7 +237,7 @@ int main(void) {
     alarm.on = 0;
 
     // Set default clock mode
-    clock_mode = MODE_CLOCK;
+    clock_mode = MODE_YEAR;
 
     init_timers();
 
