@@ -60,18 +60,6 @@ typedef struct {
     dot_state dot;
 } digit_t;
 
-
-typedef struct {
-    uint8_t hours;
-    uint8_t minutes;
-    uint8_t seconds;
-} time_t;
-
-typedef struct {
-    uint8_t day;
-    uint8_t month;
-} date_t;
-
 typedef struct {
     uint8_t hour;
     uint8_t minute;
@@ -112,10 +100,10 @@ static const static uint8_t symbols[] = {
     0x02,0x08,              // -, _.
 };
 static const uint8_t *params[] = {
-    &(time.hours),
-    &(time.minutes),
-    &(date.day),
-    &(date.month)
+    &(hours),
+    &(minutes),
+    &(day),
+    &(month)
 };
 
 static const uint8_t limits[] = {
@@ -128,8 +116,11 @@ static const uint8_t limits[] = {
  */
 static volatile digit_t digits[4];
 static volatile clock_mode_t clock_mode;
-static volatile time_t time;
-static volatile date_t date;
+static volatile uint8_t hours;
+static volatile uint8_t minutes;
+static volatile uint8_t seconds;
+static volatile uint8_t day;
+static volatile uint8_t month;
 static volatile alarm_t alarm[2];
 static volatile uint16_t ticks = 0;          // This is actual time
 static volatile struct {
@@ -184,16 +175,16 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     // Time and calendar
     if (++ticks == 1000) {
         ticks = 0;
-        if (++time.seconds == 60) {
-            time.seconds = 0;
-            if (++time.minutes == 60) {
-                time.minutes = 0;
-                if (++time.hours == 24) {
-                    time.hours = 0;
-                    if (++date.day == days_in_month[date.month] - 1) {
-                        date.day = 0;
-                        if (++date.month == 11) {
-                            date.month = 0;
+        if (++seconds == 60) {
+            seconds = 0;
+            if (++minutes == 60) {
+                minutes = 0;
+                if (++hours == 24) {
+                    hours = 0;
+                    if (++day == days_in_month[month] - 1) {
+                        day = 0;
+                        if (++month == 11) {
+                            month = 0;
                         }
                     }
                 }
@@ -210,25 +201,25 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     switch (clock_mode) {
         // Display "HR:MN" with blinking colon
         case MODE_NORMAL:
-            digits[0].symb = symbols[dec(time.hours)];
-            digits[1].symb = symbols[ones(time.hours)];
+            digits[0].symb = symbols[dec(hours)];
+            digits[1].symb = symbols[ones(hours)];
             digits[1].dot = DOT_BLINK;
-            digits[2].symb = symbols[dec(time.minutes)];
-            digits[3].symb = symbols[ones(time.minutes)];
+            digits[2].symb = symbols[dec(minutes)];
+            digits[3].symb = symbols[ones(minutes)];
             break;
         // Display "  :SE" with blinking colon
         case MODE_SECONDS:
             digits[1].dot = DOT_BLINK;
-            digits[2].symb = symbols[dec(time.seconds)];
-            digits[3].symb = symbols[ones(time.seconds)];
+            digits[2].symb = symbols[dec(seconds)];
+            digits[3].symb = symbols[ones(seconds)];
             break;
         // Display "DY.MO" with solid dot
         case MODE_DATE:
-            digits[0].symb = symbols[dec(date.day)];
+            digits[0].symb = symbols[dec(day)];
             digits[0].dot = DOT_ON;
-            digits[1].symb = symbols[ones(date.day)];
-            digits[2].symb = symbols[dec(date.month)];
-            digits[3].symb = symbols[ones(date.month)];
+            digits[1].symb = symbols[ones(day)];
+            digits[2].symb = symbols[dec(month)];
+            digits[3].symb = symbols[ones(month)];
             break;
         // Display "HR:MN" with solid colon
         case MODE_ALARM:
@@ -240,42 +231,42 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
             break;
         // Display "HR:MN" with blinkig HR and cloln
         case MODE_SET_HOUR:
-            digits[0].symb = symbols[dec(time.hours)];
+            digits[0].symb = symbols[dec(hours)];
             digits[0].blink = 1;
-            digits[1].symb = symbols[ones(time.hours)];
+            digits[1].symb = symbols[ones(hours)];
             digits[1].blink = 1;
             digits[1].dot = DOT_BLINK;
-            digits[2].symb = symbols[dec(time.minutes)];
-            digits[3].symb = symbols[ones(time.minutes)];
+            digits[2].symb = symbols[dec(minutes)];
+            digits[3].symb = symbols[ones(minutes)];
             break;
         // Display "HR:MN" with blinkig MN and cloln
         case MODE_SET_MIN:
-            digits[0].symb = symbols[dec(time.hours)];
-            digits[1].symb = symbols[ones(time.hours)];
+            digits[0].symb = symbols[dec(hours)];
+            digits[1].symb = symbols[ones(hours)];
             digits[1].dot = DOT_BLINK;
-            digits[2].symb = symbols[dec(time.minutes)];
+            digits[2].symb = symbols[dec(minutes)];
             digits[2].blink = 1;
-            digits[3].symb = symbols[ones(time.minutes)];
+            digits[3].symb = symbols[ones(minutes)];
             digits[3].blink = 1;
             break;
         // Display "DY.MO" with blinking DY
         case MODE_SET_DAY:
-            digits[0].symb = symbols[dec(date.day)];
+            digits[0].symb = symbols[dec(day)];
             digits[0].blink = 1;
             digits[0].dot = DOT_ON;
-            digits[1].symb = symbols[ones(date.day)];
+            digits[1].symb = symbols[ones(day)];
             digits[1].blink = 1;
-            digits[2].symb = symbols[dec(date.month)];
-            digits[3].symb = symbols[ones(date.month)];
+            digits[2].symb = symbols[dec(month)];
+            digits[3].symb = symbols[ones(month)];
             break;
         // Display "DY.MO" with blinking MO
         case MODE_SET_MON:
-            digits[0].symb = symbols[dec(date.day)];
+            digits[0].symb = symbols[dec(day)];
             digits[0].dot = DOT_ON;
-            digits[1].symb = symbols[ones(date.day)];
-            digits[2].symb = symbols[dec(date.month)];
+            digits[1].symb = symbols[ones(day)];
+            digits[2].symb = symbols[dec(month)];
             digits[2].blink = 1;
-            digits[3].symb = symbols[ones(date.month)];
+            digits[3].symb = symbols[ones(month)];
             digits[3].blink = 1;
             break;
         default:
@@ -318,6 +309,17 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
         switch (buttons_state.mode) {
             case BUT_RELEASED:
                 buttons_state.mode = BUT_PRESSED;
+                if (clock_mode & MODE_NORMAL) {
+                    if (++clock_mode == MODE_NORMAL_END) {
+                        clock_mode = MODE_NORMAL;
+                    }
+                }
+                if (clock_mode == MODE_DATE) {
+                    timeout = 20;
+                }
+                if (clock_mode == MODE_SECONDS) {
+                    timeout = 0;
+                }
                 if (clock_mode & MODE_SET) {
                     if (++clock_mode == MODE_SET_END) {
                         clock_mode = MODE_NORMAL;
@@ -333,7 +335,7 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
             case BUT_SHORT_PRESS:
                 if (clock_mode & MODE_NORMAL) {
                     if (clock_mode == MODE_SECONDS) {
-                        time.seconds = 0;
+                        seconds = 0;
                     } else {
                         clock_mode = MODE_SET_HOUR;
                     }
@@ -362,17 +364,6 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
         switch (buttons_state.set) {
             case BUT_RELEASED:
                 buttons_state.set = BUT_PRESSED;
-                if (clock_mode & MODE_NORMAL) {
-                    if (++clock_mode == MODE_NORMAL_END) {
-                        clock_mode = MODE_NORMAL;
-                    }
-                }
-                if (clock_mode == MODE_DATE) {
-                    timeout = 20;
-                }
-                if (clock_mode == MODE_SECONDS) {
-                    timeout = 0;
-                }
                 if (clock_mode & MODE_SET) {
                     if (++(*param) == max) {
                         (*param) = min;
@@ -390,6 +381,9 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
                     if (++(*param) == max) {
                         (*param) = min;
                     }
+                }
+                if (clock_mode == MODE_SECONDS) {
+                    seconds = 0;
                 }
                 break;
             default:
@@ -413,13 +407,13 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
 int main(void) {
 
     // Init time
-    time.hours = 12;
-    time.minutes = 0;
-    time.seconds = 0;
+    hours = 12;
+    minutes = 0;
+    seconds = 0;
 
     // Init date
-    date.day = 1;
-    date.month = 1;
+    day = 1;
+    month = 1;
 
     // Init alarm
     alarm[0].hour = 13;
