@@ -1,6 +1,19 @@
+/**
+ * @file    main.c
+ * @brief   Alternative FW for chineese clock kit with STC12C2052AD MCU
+ * @author  defog (https://github.com/defogprog/stc_clock)
+ * @version 0.1
+ * @date    10/07/2021
+ * 
+ * @copyright GNU GPLv3 (c) 2021
+ */
+
 #include <stdint.h>
 #include "stc12c.h"
 
+/**
+ * @brief   Defines
+ */
 #define DIGITS_PORT             P1
 #define BLINK_PERIOD            250
 #define _TIM_PERIOD(_ms)        (-_ms##000 - 1)
@@ -10,6 +23,9 @@
 
 #define countof(_a) (sizeof(_a)/sizeof(*_a))
 
+/**
+ * @brief   Enums
+ */
 enum {
     _0,_1,_2,_3,
     _4,_5,_6,_7,
@@ -19,6 +35,10 @@ enum {
     _DASH,__,
 };
 
+/**
+ * @brief   Typedefs
+ * 
+ */
 typedef enum  {
     DOT_OFF,
     DOT_ON,
@@ -67,7 +87,7 @@ typedef enum {
 } clock_mode_t;
 
 /**
- * CONSTANTS
+ * @brief   Constants
  */
 static const uint8_t days_in_month[12] = {
     31, 28, 31, 30,
@@ -83,7 +103,7 @@ static const static uint8_t symbols[] = {
     0x02,0x08,              // -, _.
 };
 /**
- * VARIABLES
+ * @brief   Variables
  */
 static volatile digit_t digits[4];
 static volatile clock_mode_t clock_mode;
@@ -93,7 +113,7 @@ static volatile alarm_t alarm;
 static volatile uint16_t ticks = 0;          // This is actual time
 
 /**
- * FUNCTIONS
+ * @brief   Functions
  */
 static void init_timers(void) {
     // Init Timer0
@@ -113,8 +133,8 @@ static void init_timers(void) {
     IE_ET1 = 1;
 }
 
-/*
- * ISRs
+/**
+ * @brief   ISRs
  */
 void T0_ISR(void) __interrupt (TIM0_VEC) {
     static uint8_t position = 0;
@@ -223,6 +243,8 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
 
 }
 
+/**
+ * @brief   Main function
  */
 int main(void) {
 
@@ -251,3 +273,7 @@ int main(void) {
     while (1) {
     }
 }
+
+/**
+ * @brief   End
+ */
