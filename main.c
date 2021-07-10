@@ -197,16 +197,16 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     P3 |= 0x0F;                         // Turn off digits
 
     if (digits[position].blink && times > (BLINK_PERIOD/2))
-        DIG_PORT = 0;
+        DIGITS_PORT = 0;
     else
-        DIG_PORT = digits[position].symb;
+        DIGITS_PORT = digits[position].symb;
 
     switch (digits[position].dot) {
         case DOT_BLINK:
             if (times > (BLINK_PERIOD/2))
                 break;
         case DOT_ON:
-            DIG_PORT |= (1<<0);
+            DIGITS_PORT |= (1<<0);
             break;
     }
     P3 &= ~(1<<position);               // Turn on digits
