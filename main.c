@@ -13,7 +13,7 @@
 
 #define _TIM_PERIOD(_ms)    (-_ms##000 - 1)
 #define TIM_PERIOD(_ms)     _TIM_PERIOD(_ms)
-#define SCAN_PERIOD_MS     1
+#define LED_SCAN_PERIOD_MS     1
 
 #define countof(_a) (sizeof(_a)/sizeof(*_a))
 
@@ -92,7 +92,7 @@ static const static uint8_t symbols[] = {
 /**
  * VARIABLES
  */
-volatile static digit_t digits[4];
+static volatile digit_t digits[4];
 static volatile clock_mode_t clock_mode;
 static volatile time_t time;
 static volatile date_t date;
@@ -105,9 +105,9 @@ static volatile uint16_t ticks = 0;          // This is actual time
 static void init_timers(void) {
     // Init Timer0
     AUXR &= ~AUXR_T0x12;                // SYSclk/12
-    TMOD = TMOD_T0_M0;                  // 16-bit Timer mode
-    TL0 = TIM_PERIOD(SCAN_PERIOD_MS) & 0xFF;
-    TH0 = (TIM_PERIOD(SCAN_PERIOD_MS) >> 8) & 0xFF;
+    TMOD |= TMOD_T0_M0;                 // 16-bit timer mode
+    TL0 = TIM_PERIOD(LED_SCAN_PERIOD_MS) & 0xFF;
+    TH0 = (TIM_PERIOD(LED_SCAN_PERIOD_MS) >> 8) & 0xFF;
     TCON_TR0 = 1;                       // Enable Tim0
     IE_ET0 = 1;                         // Enable Tim0 Interrupts
 }
@@ -119,8 +119,8 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     static uint8_t position = 0;
     static uint16_t times = 0;
 
-    TL0 = TIM_PERIOD(SCAN_PERIOD_MS) & 0xFF;
-    TH0 = (TIM_PERIOD(SCAN_PERIOD_MS) >> 8) & 0xFF;
+    TL0 = TIM_PERIOD(LED_SCAN_PERIOD_MS) & 0xFF;
+    TH0 = (TIM_PERIOD(LED_SCAN_PERIOD_MS) >> 8) & 0xFF;
 
     // Time and calendar
     if (++ticks == 1000) {
@@ -160,13 +160,13 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
             digits[3].symb = symbols[time.minutes % 10];
             break;
 
-        // Display "  :SS" with solid colon
+        // Display "  :SE" with solid colon
         case MODE_SECONDS:
             digits[1].dot = DOT_ON;
             digits[2].symb = symbols[time.seconds / 10];
             digits[3].symb = symbols[time.seconds % 10];
             break;
-        // Display "DD.MM." with solid dots
+        // Display "DY.MO" with solid dot
         case MODE_DATE:
             digits[0].symb = symbols[date.day / 10];
             digits[0].dot = DOT_ON;
@@ -181,7 +181,7 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
             digits[2].symb = symbols[date.year / 10  % 10];
             digits[3].symb = symbols[date.year / 1   % 10];
             break;
-        // Display "MM:HH" with solid colon
+        // Display "HR:MN" with solid colon
         case MODE_ALARM:
             digits[0].symb = symbols[alarm.hour / 10];
             digits[1].symb = symbols[alarm.hour % 10];
