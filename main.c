@@ -1,19 +1,12 @@
 #include <stdint.h>
 #include "stc12c.h"
 
-#define DS1             P3_0
-#define DS2             P3_1
-#define DS3             P3_2
-#define DS4             P3_3
-
-#define DIG_PORT        P1
-#define DIG_DOT         P1_0
-
-#define BLINK_PERIOD    250
-
-#define _TIM_PERIOD(_ms)    (-_ms##000 - 1)
-#define TIM_PERIOD(_ms)     _TIM_PERIOD(_ms)
-#define LED_SCAN_PERIOD_MS     1
+#define DIGITS_PORT             P1
+#define BLINK_PERIOD            250
+#define _TIM_PERIOD(_ms)        (-_ms##000 - 1)
+#define TIM_PERIOD(_ms)         _TIM_PERIOD(_ms)
+#define LED_SCAN_PERIOD_MS      1
+#define BUTTON_SCAN_PERIOD_MS   50
 
 #define countof(_a) (sizeof(_a)/sizeof(*_a))
 
@@ -110,6 +103,14 @@ static void init_timers(void) {
     TH0 = (TIM_PERIOD(LED_SCAN_PERIOD_MS) >> 8) & 0xFF;
     TCON_TR0 = 1;                       // Enable Tim0
     IE_ET0 = 1;                         // Enable Tim0 Interrupts
+
+    // Init Timer1
+    AUXR &= ~AUXR_T1x12;                // SYSclk/12
+    TMOD |= TMOD_T1_M0;                 // 16-bit timer mode
+    TL1 = TIM_PERIOD(BUTTON_SCAN_PERIOD_MS) & 0xFF;
+    TH1 = (TIM_PERIOD(BUTTON_SCAN_PERIOD_MS) >> 8) & 0xFF;
+    TCON_TR1 = 1;
+    IE_ET1 = 1;
 }
 
 /*
@@ -218,8 +219,10 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     }
 }
 
-/*
- * MAIN
+void T1_ISR(void) __interrupt(TIM1_VEC) {
+
+}
+
  */
 int main(void) {
 
