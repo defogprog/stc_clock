@@ -32,33 +32,33 @@ typedef enum  {
     DOT_BLINK,
 } dot_state;
 
-typedef struct _digit_t {
+typedef struct {
     uint8_t symb;
     uint8_t blink : 1;
     dot_state dot : 2;
 } digit_t;
 
 
-typedef struct _time_t {
+typedef struct {
     uint8_t hours;
     uint8_t minutes;
     uint8_t seconds;
 } time_t;
 
-typedef struct _date_t {
+typedef struct {
     uint8_t day;
     uint8_t month;
     uint16_t year;
 } date_t;
 
-typedef struct _alarm_t {
+typedef struct {
     uint8_t hour;
     uint8_t minute;
     uint8_t on : 1;
 } alarm_t;
 
 typedef enum {
-    MODE_CLOCK = 1,
+    MODE_CLOCK,
     MODE_SECONDS,
     MODE_DATE,
     MODE_YEAR,
@@ -96,7 +96,6 @@ static volatile time_t time;
 static volatile date_t date;
 static volatile uint16_t ticks = 0;          // This is actual time
 
-
 /**
  * FUNCTIONS
  */
@@ -123,11 +122,11 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     // Time and calendar
     if (++ticks == 1000) {
         ticks = 0;
-        if (++time.seconds == 60) {
+        if (++time.seconds > 59) {
             time.seconds = 0;
-            if (++time.minutes == 60) {
+            if (++time.minutes > 59) {
                 time.minutes = 0;
-                if (++time.hours = 24) {
+                if (++time.hours > 23) {
                     time.hours = 0;
                     if (++date.day > days_in_month[date.month]) {
                         date.day = 1;
@@ -208,17 +207,28 @@ int main(void) {
     uint8_t d = 0;
     uint8_t num = 0;
 
+    // Init time
     time.hours = time.minutes = time.seconds = 0;
+
+    // Init date
     date.day = 1;
     date.month = 1;
     date.year = 2020;
+
+    // Init alarm
+    alarm.hour = 12;
+    alarm.minute = 0;
+    alarm.on = 0;
+
+    // Set default clock mode
     clock_mode = MODE_CLOCK;
 
     init_timers();
 
-    IE_EA = 1;                          // Enable interrupts globally
+    // Enable interrupts globally
+    IE_EA = 1;
 
+    // Loop forever
     while (1) {
-
     }
 }
