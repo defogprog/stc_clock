@@ -141,58 +141,35 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
         }
     }
 
+    uint8_t i;
+    for (i=0; i<4; i++) {
+        digits[i].symb = 0;
+        digits[i].blink = 0;
+        digits[i].dot = DOT_OFF;
+    }
+
     switch (clock_mode) {
         // Display "HR:MN" with blinking colon
         case MODE_CLOCK:
             digits[0].symb = symbols[time.hours / 10];
-            digits[0].blink = 0;
-            digits[0].dot = DOT_OFF;
-
             digits[1].symb = symbols[time.hours % 10];
-            digits[1].blink = 0;
             digits[1].dot = DOT_BLINK;
-
             digits[2].symb = symbols[time.minutes / 10];
-            digits[2].blink = 0;
-            digits[2].dot = DOT_OFF;
-
             digits[3].symb = symbols[time.minutes % 10];
-            digits[3].blink = 0;
-            digits[3].dot = DOT_OFF;
             break;
 
         // Display "  :SS" with solid colon
         case MODE_SECONDS:
-            digits[0].symb = 0;
-            digits[0].blink = 0;
-            digits[0].dot = DOT_OFF;
-
-            digits[1].symb = 0;
-            digits[1].blink = 0;
             digits[1].dot = DOT_ON;
-
             digits[2].symb = symbols[time.seconds / 10];
-            digits[2].blink = 0;
-            digits[2].dot = DOT_OFF;
-
             digits[3].symb = symbols[time.seconds % 10];
-            digits[3].blink = 0;
-            digits[3].dot = DOT_OFF;
             break;
         // Display "DD.MM." with solid dots
         case MODE_DATE:
             digits[0].symb = symbols[date.day / 10];
-            digits[0].blink = 0;
             digits[0].dot = DOT_ON;
-
             digits[1].symb = symbols[date.day % 10];
-            digits[1].blink = 0;
-            digits[1].dot = DOT_OFF;
-
             digits[2].symb = symbols[date.month / 10];
-            digits[2].blink = 0;
-            digits[2].dot = DOT_OFF;
-
             digits[3].symb = symbols[date.month % 10];
             digits[3].blink = 0;
             digits[3].dot = DOT_ON;
