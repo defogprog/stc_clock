@@ -1,21 +1,33 @@
 TARGET = clock
 HEX = $(TARGET).hex
 
-CSRC = main.c
-CARGS = -mmcs51
+CSRCS = $(wildcard *.c)
+OBJS = $(CSRCS:%.c=$(BUILD)/%.rel)
+
+CARGS  = -mmcs51
 CARGS += --iram-size 256
 CARGS += --xram-size 0
 CARGS += --code-size 2048
 CARGS += --nooverlay
-CARGS += --nointroduction
 CARGS += --verbose
 CARGS += --debug
 CARGS += -V
 CARGS += --std-sdcc99
 CARGS += --model-small
+
+OBJARGS  = -mmcs51
+OBJARGS += --iram-size 256
+OBJARGS += --xram-size 0
+OBJARGS += --code-size 2048
+OBJARGS += --nooverlay
+OBJARGS += --verbose
+OBJARGS += --debug
+OBJARGS += -V
+OBJARGS += --std-sdcc99
+OBJARGS += --model-small
+
 INCLUDES = -Iinclude
 
-PROG = stcgal
 PROGARGS = -P stc12a
 PROGARGS += -p /dev/ttyUSB0
 PROGARGS += -b 9600
@@ -23,23 +35,33 @@ PROGARGS += -l 2400
 PROGARGS += -o clock_source=external
 
 BUILD = build
+
+PROG = stcgal
 CC = sdcc
-CP = CP
+CP = cp
 MV = mv
 RM = rm -rf
 MKDIR = mkdir
-MOECHO = @
+ifeq ($(SILENTLY),1)
+NOECHO = @
+NOFLOOD = > /dev/null
+else
+NOECHO = 
+endif
 
 .PHONY: all clean
 
-all: $(BUILD)
-	$(CC) $(CARGS) $(INCLUDES) $(CSRC) -o $(BUILD)/$(HEX)
+all: $(BUILD) $(OBJS)
+	$(NOECHO)$(CC) $(OBJARGS) $(INCLUDES) $(OBJS) -o $(BUILD)/$(HEX) $(NOFLOOD)
+
+$(OBJS):$(BUILD)/%.rel:%.c
+	$(NOECHO)$(CC) $(CARGS) $(INCLUDES) -c $< -o $@ $(NOFLOOD)
 
 clean:
-	$(RM) $(BUILD)
+	$(NOECHO)$(RM) $(BUILD) $(NOFLOOD)
 
 $(BUILD):
-	$(MKDIR) $(BUILD)
+	$(NOECHO)$(MKDIR) $(BUILD) $(NOFLOOD)
 
 flash: all
-	$(PROG) $(PROGARGS) $(BUILD)/$(HEX)
+	$(NOECHO)$(PROG) $(PROGARGS) $(BUILD)/$(HEX) $(NOFLOOD)
