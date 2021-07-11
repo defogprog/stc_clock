@@ -17,6 +17,7 @@
 #define DIGITS_PORT             P1
 #define BUTTON_MODE             P3_4
 #define BUTTON_SET              P3_5
+#define ALARM_PIN               P3_7
 #define _TIM_PERIOD(_ms)        (-_ms##000 - 1)
 #define TIM_PERIOD(_ms)         _TIM_PERIOD(_ms)
 #define LED_SCAN_PERIOD_MS      5
@@ -34,7 +35,7 @@ enum {
     _8,_9,_A,_B,
     _C,_D,_E,_F,
     _H,_L,_I,_P,
-    _DASH,__,
+    _DASH,__,_N,
 };
 
 enum {
@@ -42,6 +43,11 @@ enum {
     BUT_PRESSED,
     BUT_SHORT_PRESS,
     BUT_LONG_PRESS,
+};
+
+enum {
+    MODE_12H,
+    MODE_24H
 };
 
 /**
@@ -80,7 +86,8 @@ typedef enum {
     MODE_ALARM          = 0x40,
     MODE_ALARM_HOUR,
     MODE_ALARM_MIN,
-    MODE_ALARM_STOP,
+    MODE_ALARM_ON_OFF,
+    MODE_ALARM_END,
 } clock_mode_t;
 
 /**
@@ -91,13 +98,13 @@ static const uint8_t days_in_month[12] = {
     31, 30, 31, 31,
     30, 31, 30, 31
 };
-static const static uint8_t symbols[] = {
+static const uint8_t symbols[] = {
     0xFC,0x24,0xBA,0xAE,    // 0, 1, 2, 3,
     0x66,0xCE,0xDE,0xA4,    // 4, 5, 6, 7,
     0xFE,0xEE,0xF6,0x5E,    // 8, 9, A, b,
     0xD8,0x3E,0xDA,0xD2,    // C, d, E, F,
-    0x76,0x58,0x50,0xF2,    // H, L, I,
-    0x02,0x08,              // -, _.
+    0x76,0x58,0x50,0xF2,    // H, L, I, P,
+    0x02,0x08,0x16          // -, _, n,
 };
 static const uint8_t *params[] = {
     &(hours),
@@ -111,6 +118,7 @@ static const uint8_t limits[] = {
     24, 60, 32, 13, // Higher limit
 };
 
+static const uint16_t alarm_pattern = 0x0055;
 /**
  * @brief   Variables
  */
@@ -121,7 +129,12 @@ static volatile uint8_t minutes;
 static volatile uint8_t seconds;
 static volatile uint8_t day;
 static volatile uint8_t month;
-static volatile alarm_t alarm[2];
+static volatile uint8_t mode_12_24;
+static volatile uint8_t alarm_hour;
+static volatile uint8_t alarm_minute;
+static volatile uint8_t alarm_on = 1;
+static volatile uint8_t alarm_active;
+// static volatile alarm_t alarm[2];
 static volatile uint16_t ticks = 0;          // This is actual time
 static volatile struct {
     uint8_t mode;
@@ -181,16 +194,35 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
                     }
                 }
             }
+            // Alarm handling
+            if (alarm_on) {
+                if (alarm_minute == minutes && alarm_hour == hours) {
+                    alarm_active = 100;
+                }
+            }
         }
     }
     uint8_t i;
     for (i=0; i<4; i++) {
         digits[i].symb = 0;
-        digits[i].blink = 0;
         digits[i].dot = DOT_OFF;
+        if (alarm_active) {
+            digits[i].blink = 1;
+        } else {
+            digits[i].blink = 0;
+        }
     }
 
+    i = 0;
+    // Render symbols on LED display
     switch (clock_mode) {
+        // Display "HR:MN" with blinkig MN and colon
+        case MODE_SET_MIN:
+            i = 2;
+        // Display "HR:MN" with blinkig HR and colon
+        case MODE_SET_HOUR:
+            digits[i].blink = 1;
+            digits[i+1].blink = 1;
         // Display "HR:MN" with blinking colon
         case MODE_NORMAL:
             digits[0].symb = symbols[dec(hours)];
@@ -205,6 +237,13 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
             digits[2].symb = symbols[dec(seconds)];
             digits[3].symb = symbols[ones(seconds)];
             break;
+        // Display "DY.MO" with blinking MO
+        case MODE_SET_MON:
+            i = 2;
+        // Display "DY.MO" with blinking DY
+        case MODE_SET_DAY:
+            digits[i].blink = 1;
+            digits[i+1].blink = 1;
         // Display "DY.MO" with solid dot
         case MODE_DATE:
             digits[0].symb = symbols[dec(day)];
@@ -213,52 +252,38 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
             digits[2].symb = symbols[dec(month)];
             digits[3].symb = symbols[ones(month)];
             break;
+        // Display "HR:MN" with blinking MN and solid colon
+        case MODE_ALARM_MIN:
+            i = 2;
+        // Display "HR:MN" with blinking HR and solid colon
+        case MODE_ALARM_HOUR:
+            digits[i].blink = 1;
+            digits[i+1].blink = 1;
         // Display "HR:MN" with solid colon
         case MODE_ALARM:
-            digits[0].symb = symbols[dec(alarm[0].hour)];
-            digits[1].symb = symbols[ones(alarm[0].hour)];
+            digits[0].symb = symbols[dec(alarm_hour)];
+            digits[1].symb = symbols[ones(alarm_hour)];
             digits[1].dot = DOT_ON;
-            digits[2].symb = symbols[dec(alarm[0].minute)];
-            digits[3].symb = symbols[ones(alarm[0].minute)];
+            digits[2].symb = symbols[dec(alarm_minute)];
+            digits[3].symb = symbols[ones(alarm_minute)];
+            if (alarm_on) {
+                uint8_t j;
+                for (j = 0; j < 4; j++) {
+                    digits[j].dot = DOT_BLINK;
+                }
+            }
             break;
-        // Display "HR:MN" with blinkig HR and cloln
-        case MODE_SET_HOUR:
-            digits[0].symb = symbols[dec(hours)];
-            digits[0].blink = 1;
-            digits[1].symb = symbols[ones(hours)];
-            digits[1].blink = 1;
-            digits[1].dot = DOT_BLINK;
-            digits[2].symb = symbols[dec(minutes)];
-            digits[3].symb = symbols[ones(minutes)];
-            break;
-        // Display "HR:MN" with blinkig MN and cloln
-        case MODE_SET_MIN:
-            digits[0].symb = symbols[dec(hours)];
-            digits[1].symb = symbols[ones(hours)];
-            digits[1].dot = DOT_BLINK;
-            digits[2].symb = symbols[dec(minutes)];
+        case MODE_ALARM_ON_OFF:
+            digits[0].symb = symbols[_A];
+            digits[1].symb = symbols[_L];
+            digits[1].dot = DOT_ON;
+            digits[2].symb = symbols[_0];
             digits[2].blink = 1;
-            digits[3].symb = symbols[ones(minutes)];
-            digits[3].blink = 1;
-            break;
-        // Display "DY.MO" with blinking DY
-        case MODE_SET_DAY:
-            digits[0].symb = symbols[dec(day)];
-            digits[0].blink = 1;
-            digits[0].dot = DOT_ON;
-            digits[1].symb = symbols[ones(day)];
-            digits[1].blink = 1;
-            digits[2].symb = symbols[dec(month)];
-            digits[3].symb = symbols[ones(month)];
-            break;
-        // Display "DY.MO" with blinking MO
-        case MODE_SET_MON:
-            digits[0].symb = symbols[dec(day)];
-            digits[0].dot = DOT_ON;
-            digits[1].symb = symbols[ones(day)];
-            digits[2].symb = symbols[dec(month)];
-            digits[2].blink = 1;
-            digits[3].symb = symbols[ones(month)];
+            if (alarm_on) {
+                digits[3].symb = symbols[_N];
+            } else {
+                digits[3].symb = symbols[_F];
+            }
             digits[3].blink = 1;
             break;
         default:
@@ -298,6 +323,11 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
 
     // MODE button state machine
     if (BUTTON_MODE == 0) {
+        // Mute alarm
+        if (alarm_active) {
+            alarm_active = 0;
+            ALARM_PIN = 1;
+        }
         switch (buttons_state.mode) {
             case BUT_RELEASED:
                 buttons_state.mode = BUT_PRESSED;
@@ -305,12 +335,17 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
                     if (++clock_mode == MODE_NORMAL_END) {
                         clock_mode = MODE_NORMAL;
                     }
+                    if (clock_mode == MODE_DATE) {
+                        timeout = 20;
+                    }
+                    if (clock_mode == MODE_SECONDS) {
+                        timeout = 0;
+                    }
                 }
-                if (clock_mode == MODE_DATE) {
-                    timeout = 20;
-                }
-                if (clock_mode == MODE_SECONDS) {
-                    timeout = 0;
+                if (clock_mode > MODE_ALARM && clock_mode < MODE_ALARM_END) {
+                    if (++clock_mode == MODE_ALARM_END) {
+                        clock_mode = MODE_NORMAL;
+                    }
                 }
                 if (clock_mode & MODE_SET) {
                     if (++clock_mode == MODE_SET_END) {
@@ -331,9 +366,13 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
                     } else {
                         clock_mode = MODE_SET_HOUR;
                     }
+                } else if (clock_mode == MODE_ALARM) {
+                    timeout = 0;
+                    clock_mode = MODE_ALARM_HOUR;
                 } else {
                     clock_mode = MODE_NORMAL;
                 }
+                
                 buttons_state.mode = BUT_LONG_PRESS;
                 break;
             default:
@@ -352,13 +391,37 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
         param = (uint8_t*)params[index];
         min = limits[index];
         max = limits[index + 4];
-        
+
+        // Mute alarm
+        if (alarm_active) {
+            alarm_active = 0;
+            ALARM_PIN = 1;
+        }
         switch (buttons_state.set) {
             case BUT_RELEASED:
                 buttons_state.set = BUT_PRESSED;
                 if (clock_mode & MODE_SET) {
                     if (++(*param) == max) {
                         (*param) = min;
+                    }
+                }
+                if (clock_mode == MODE_NORMAL) {
+                    clock_mode = MODE_ALARM;
+                    timeout = 40;
+                }
+                if (clock_mode & MODE_ALARM) {
+                    if (clock_mode == MODE_ALARM_HOUR) {
+                        if (++alarm_hour == 24) {
+                            alarm_hour = 0;
+                        }
+                    }
+                    if (clock_mode == MODE_ALARM_MIN) {
+                        if (++alarm_minute == 60) {
+                            alarm_minute = 0;
+                        }
+                    }
+                    if (clock_mode == MODE_ALARM_ON_OFF) {
+                        alarm_on ^= 1;
                     }
                 }
                 break;
@@ -372,6 +435,16 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
                 if (clock_mode & MODE_SET) {
                     if (++(*param) == max) {
                         (*param) = min;
+                    }
+                }
+                if (clock_mode == MODE_ALARM_HOUR) {
+                    if (++alarm_hour == 24) {
+                        alarm_hour = 0;
+                    }
+                }
+                if (clock_mode == MODE_ALARM_MIN) {
+                    if (++alarm_minute == 60) {
+                        alarm_minute = 0;
                     }
                 }
                 if (clock_mode == MODE_SECONDS) {
@@ -391,6 +464,16 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
             clock_mode = MODE_NORMAL;
         }
     }
+
+    static uint8_t alarm_bit = 0;
+    if (alarm_on && alarm_active) {
+        if (--alarm_active) {
+            ALARM_PIN = !(alarm_pattern & (1 << alarm_bit));
+            if (++alarm_bit == 16) {
+                alarm_bit = 0;
+            }
+        }
+    }
 }
 
 /**
@@ -408,9 +491,9 @@ int main(void) {
     month = 1;
 
     // Init alarm
-    alarm[0].hour = 13;
-    alarm[0].minute = 0;
-    alarm[0].on = 0;
+    alarm_hour = 13;
+    alarm_minute = 0;
+    // alarm.on = 0;
 
     // Set default clock mode
     clock_mode = MODE_NORMAL;
