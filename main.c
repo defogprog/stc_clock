@@ -139,21 +139,13 @@ static uint8_t times = 0;
  * @brief   Functions
  */
 static void init_timers(void) {
-    // Init Timer0
-    AUXR &= ~AUXR_T0x12;                // SYSclk/12
-    TMOD |= TMOD_T0_M0;                 // 16-bit timer mode
-    TL0 = TIM_PERIOD(LED_SCAN_PERIOD_MS) & 0xFF;
-    TH0 = (TIM_PERIOD(LED_SCAN_PERIOD_MS) >> 8) & 0xFF;
-    TCON_TR0 = 1;                       // Enable Tim0
-    IE_ET0 = 1;                         // Enable Tim0 Interrupts
-
-    // Init Timer1
-    AUXR &= ~AUXR_T1x12;                // SYSclk/12
-    TMOD |= TMOD_T1_M0;                 // 16-bit timer mode
-    TL1 = TIM_PERIOD(BUTTON_SCAN_PERIOD_MS) & 0xFF;
-    TH1 = (TIM_PERIOD(BUTTON_SCAN_PERIOD_MS) >> 8) & 0xFF;
-    TCON_TR1 = 1;
-    IE_ET1 = 1;
+    TMOD = TMOD_T0_M0 | TMOD_T1_M0;         // 16-bit timer mode
+    TL0  = TIM_PERIOD(LED_SCAN_PERIOD_MS) & 0xFF;
+    TH0  = (TIM_PERIOD(LED_SCAN_PERIOD_MS) >> 8) & 0xFF;
+    TL1  = TIM_PERIOD(BUTTON_SCAN_PERIOD_MS) & 0xFF;
+    TH1  = (TIM_PERIOD(BUTTON_SCAN_PERIOD_MS) >> 8) & 0xFF;
+    TCON = (1<<4)|(1<<6);                   // Enable Timers
+    IE   = (1<<1)|(1<<3);                   // Enable Timers' Interrupts
 }
 
 static uint8_t dec(uint8_t num) {
@@ -357,7 +349,7 @@ void T1_ISR(void) __interrupt(TIM1_VEC) {
         uint8_t *param;
         uint8_t min, max;
         uint8_t index = (clock_mode & ~MODE_SET) - 1;
-        param = params[index];
+        param = (uint8_t*)params[index];
         min = limits[index];
         max = limits[index + 4];
         
