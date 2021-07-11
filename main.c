@@ -19,9 +19,9 @@
 #define BUTTON_SET              P3_5
 #define _TIM_PERIOD(_ms)        (-_ms##000 - 1)
 #define TIM_PERIOD(_ms)         _TIM_PERIOD(_ms)
-#define LED_SCAN_PERIOD_MS      1
+#define LED_SCAN_PERIOD_MS      5
 #define BUTTON_SCAN_PERIOD_MS   50
-#define BLINK_PERIOD            250
+#define BLINK_PERIOD            (250 / LED_SCAN_PERIOD_MS)
 
 #define countof(_a) (sizeof(_a)/sizeof(*_a))
 
@@ -165,7 +165,7 @@ void T0_ISR(void) __interrupt (TIM0_VEC) {
     TH0 = (TIM_PERIOD(LED_SCAN_PERIOD_MS) >> 8) & 0xFF;
 
     // Time and calendar
-    if (++ticks == 1000) {
+    if (++ticks == (1000 / LED_SCAN_PERIOD_MS)) {
         ticks = 0;
         if (++seconds == 60) {
             seconds = 0;
