@@ -1,7 +1,5 @@
 # stc_clock
-STC12C2052AD clock
-
-This is a firmware for chineese clock kit with STC12C2052AD MCU.
+Alternative firmware for chinese clock kit with STC12C2052AD MCU
 
 <details>
 <summary>Picture</summary>
